@@ -1,0 +1,721 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ECOS · Listick Games</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Pixelify+Sans:wght@400;700&display=swap">
+<style>
+/* Una sola hoja de papel crema que se desplaza sin cortes; el color fuerte vive solo en los escenarios y en los sprites. */
+:root {
+  --papel: #F3EDE2;      /* fondo continuo */
+  --papel-hondo: #E9E0D0; /* sombras suaves y líneas */
+  --tinta: #2A2019;      /* texto, café casi negro de la corteza */
+  --corteza: #7B5434;    /* títulos secundarios, la madera del logo */
+  --jade: #177E72;       /* acento: las manos que brillan */
+  --gema: #B8333B;       /* detalle mínimo: la gema roja */
+  --fuente-pixel: "Pixelify Sans", "Courier New", monospace;
+  --fuente-texto: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+  --t-ojo: clamp(0.8rem, 0.55rem + 0.7vw, 1.15rem);
+  --t-cuerpo: clamp(1.05rem, 0.75rem + 1vw, 1.6rem);
+  --t-sub: clamp(1.4rem, 0.9rem + 1.6vw, 2.4rem);
+  --t-titulo: clamp(2.2rem, 1.2rem + 3.6vw, 5.2rem);
+  --t-gigante: clamp(3rem, 1.5rem + 6vw, 8.5rem);
+  color-scheme: light;
+}
+@font-face { font-family: "Pixelify Sans"; src: url("fuentes/pixelify-sans-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Pixelify Sans"; src: url("fuentes/pixelify-sans-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fuentes/atkinson-hyperlegible-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fuentes/atkinson-hyperlegible-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+
+html { background: var(--papel); overflow-x: clip; scroll-behavior: auto; }
+body {
+  background: var(--papel); color: var(--tinta);
+  font-family: var(--fuente-texto); font-size: var(--t-cuerpo); line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+*, *::before, *::after { box-sizing: border-box; }
+h1, h2, h3, p, dl, dd, ul, figure { margin: 0; }
+::selection { background: var(--jade); color: var(--papel); }
+
+.pantalla {
+  position: relative; min-height: var(--alto, 100vh);
+  display: grid; align-content: center;
+  padding-block: clamp(48px, 8vh, 110px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow: hidden; isolation: isolate;
+}
+.contenido {
+  position: relative; z-index: 2;
+  width: min(100%, 56rem); margin-inline: auto;
+  display: grid; gap: clamp(14px, 2.4vh, 28px);
+}
+/* --reserva: ancho que ocupa el personaje asomado (lo mide el script); el texto se centra en el resto. */
+.pantalla[data-lado="izq"]:not(.nivel) { padding-left: calc(var(--reserva, 0px) + 16px); }
+.pantalla[data-lado="der"]:not(.nivel) { padding-right: calc(var(--reserva, 0px) + 16px); }
+.ojo { font-family: var(--fuente-pixel); font-size: var(--t-ojo); letter-spacing: .18em; text-transform: uppercase; color: var(--jade); }
+h1, h2 { font-family: var(--fuente-pixel); font-weight: 700; line-height: 1.02; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font-size: var(--t-titulo); }
+.lema { font-size: var(--t-sub); line-height: 1.3; max-width: 34ch; text-wrap: balance; color: var(--tinta); }
+.nota { max-width: 46ch; color: color-mix(in srgb, var(--tinta) 78%, var(--papel)); }
+.nota b, .lema b { color: var(--corteza); }
+
+/* -------- portada -------- */
+.portada { align-content: center; justify-items: center; }
+.portada figure { position: relative; z-index: 2; width: min(92vw, calc(78vh * 1.26)); margin: 0; transform-origin: 50% 40%; will-change: transform; }
+.portada img { width: 100%; height: auto; display: block; box-shadow: 0 30px 60px -30px rgba(42,32,25,.55), 0 2px 0 var(--papel-hondo); }
+.portada figcaption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; margin-top: 18px; font-family: var(--fuente-pixel); font-size: var(--t-ojo); letter-spacing: .16em; text-transform: uppercase; color: var(--corteza); }
+
+/* -------- sprites que se asoman -------- */
+.asoma {
+  position: absolute; bottom: 0; z-index: 3; pointer-events: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  --x: 100%;
+}
+.asoma[data-lado="izq"] { left: 0; transform: translateX(calc(-1 * var(--x))); }
+.asoma[data-lado="der"] { right: 0; transform: translateX(var(--x)) scaleX(-1); }
+.asoma.pasea { left: 0; transform: translate(var(--px, 0px), var(--py, 0px)) scaleX(var(--dir, 1)); }
+
+/* -------- desfile de personajes -------- */
+.desfile { align-content: start; }
+.pista { position: absolute; left: 0; bottom: 0; width: 100%; height: 64%; z-index: 1; image-rendering: pixelated; image-rendering: crisp-edges; }
+.asoma-sombra { position: absolute; bottom: 0; height: 10px; border-radius: 50%; background: rgba(42,32,25,.16); filter: blur(3px); z-index: 2; }
+
+/* -------- mecánica -------- */
+.deletreo { display: flex; gap: clamp(6px, 1.4vw, 18px); flex-wrap: wrap; align-items: flex-end; }
+.deletreo span { font-family: var(--fuente-pixel); font-weight: 700; font-size: var(--t-gigante); line-height: .9; color: var(--tinta); }
+.deletreo span { transition: color .25s, transform .25s; }
+.deletreo span.on { color: var(--jade); transform: translateY(-6px); }
+.deletreo small { font-family: var(--fuente-pixel); font-size: var(--t-ojo); letter-spacing: .14em; color: var(--corteza); align-self: center; margin-left: 8px; text-transform: uppercase; }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(20px, 4vw, 56px); align-items: center; }
+.captura { width: 100%; height: auto; display: block; image-rendering: pixelated; box-shadow: 0 24px 48px -28px rgba(42,32,25,.6); }
+.pie { font-family: var(--fuente-pixel); font-size: var(--t-ojo); letter-spacing: .12em; text-transform: uppercase; color: var(--corteza); margin-top: 10px; }
+.afinidades { display: grid; gap: 6px; font-size: clamp(.95rem, .7rem + .7vw, 1.3rem); }
+.afinidades div { display: grid; grid-template-columns: 9ch minmax(0, 1fr); gap: 14px; }
+.afinidades dt, .afinidades b { font-family: var(--fuente-pixel); color: var(--jade); }
+
+/* -------- ruta -------- */
+.ruta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-family: var(--fuente-pixel); font-size: clamp(1.2rem, .8rem + 1.8vw, 2.6rem); line-height: 1.2; }
+.ruta i { font-style: normal; color: var(--jade); }
+.ruta .salto { color: color-mix(in srgb, var(--tinta) 35%, var(--papel)); text-decoration: line-through; font-size: .55em; }
+
+/* -------- niveles -------- */
+.nivel { align-content: center; gap: clamp(12px, 2.4vh, 28px); padding-left: 0; padding-right: 0; padding-block: clamp(24px, 5vh, 60px); }
+.nivel .cabeza, .nivel .abajo { padding-left: max(16px, env(safe-area-inset-left, 0px), 6vw); padding-right: max(16px, env(safe-area-inset-right, 0px), 6vw); position: relative; z-index: 2; }
+.nivel .cabeza { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 28px; }
+.nivel h2 { font-size: clamp(1.9rem, 1rem + 3vw, 4.4rem); }
+.nivel .cabeza .ojo { white-space: nowrap; }
+.escena { position: relative; width: 100%; aspect-ratio: 640 / 210; max-height: 46vh; max-width: 100%; z-index: 1; background: #120f18; }
+.escena canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; object-fit: cover; }
+.abajo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(18px, 4vw, 64px); align-items: start; }
+.pantalla[data-lado="der"] .abajo { direction: rtl; padding-right: max(16px, calc(var(--reserva, 0px) + 24px)); }
+.pantalla[data-lado="der"] .abajo > * { direction: ltr; }
+.pantalla[data-lado="izq"] .abajo { padding-left: max(16px, calc(var(--reserva, 0px) + 24px)); }
+.abajo .captura { max-height: 27vh; width: auto; max-width: 100%; justify-self: center; }
+.abajo figure { margin: 0; display: grid; justify-items: start; }
+.jefe { font-family: var(--fuente-pixel); color: var(--gema); font-size: var(--t-ojo); letter-spacing: .14em; text-transform: uppercase; }
+
+/* -------- cifras de producción -------- */
+.cifras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 3vh, 34px) clamp(20px, 4vw, 60px); }
+.cifra { display: grid; gap: 4px; align-content: start; }
+.cifra strong { font-family: var(--fuente-pixel); font-size: clamp(2rem, 1.2rem + 3vw, 4.6rem); line-height: 1; color: var(--tinta); font-variant-numeric: tabular-nums; }
+.cifra span { color: color-mix(in srgb, var(--tinta) 72%, var(--papel)); max-width: 32ch; font-size: clamp(.95rem, .7rem + .7vw, 1.3rem); }
+
+/* -------- equipo -------- */
+.equipo { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 3.4vh, 40px) clamp(24px, 4vw, 64px); }
+.equipo li { display: grid; gap: 4px; align-content: start; }
+.equipo strong { font-family: var(--fuente-pixel); font-size: clamp(1.25rem, .8rem + 1.5vw, 2.2rem); line-height: 1.1; }
+.equipo span { color: color-mix(in srgb, var(--tinta) 72%, var(--papel)); font-size: clamp(.95rem, .7rem + .6vw, 1.25rem); }
+
+/* -------- postal -------- */
+.final { justify-items: center; }
+/* Postal de verdad: foto a la izquierda, lado escrito a la derecha con sello y matasellos. */
+.postal {
+  position: relative; z-index: 2; width: min(94vw, calc(70vh * 1.78)); aspect-ratio: 16 / 9; max-width: 100%;
+  background: #FBF7EF; padding: clamp(10px, 1.4vw, 22px);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: clamp(12px, 2vw, 34px);
+  box-shadow: 0 40px 70px -40px rgba(42,32,25,.6), 0 1px 0 var(--papel-hondo);
+  transform: rotate(-1.4deg);
+}
+.postal .foto { height: 100%; width: auto; min-height: 0; max-width: none; aspect-ratio: 1726 / 1462; display: block; object-fit: cover; }
+.postal .reverso { position: relative; display: grid; align-content: end; gap: clamp(6px, 1.2vh, 14px); padding-block: 4% 5%; padding-inline: 4% 2%; border-left: 2px dashed var(--papel-hondo); min-width: 0; }
+.postal .saludo { font-family: var(--fuente-texto); font-style: italic; font-weight: 700; color: var(--corteza); font-size: clamp(.9rem, .4rem + 1.3vw, 1.9rem); transform: rotate(-3deg); transform-origin: left; }
+.postal .grande {
+  font-family: var(--fuente-pixel); font-weight: 700; line-height: .88; letter-spacing: .01em;
+  font-size: clamp(2rem, .6rem + 4.6vw, 6.4rem);
+  background: url("img/portada.jpg") center 30% / cover; -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: clamp(1px, .2vw, 3px) var(--tinta);
+  filter: drop-shadow(4px 5px 0 var(--gema));
+}
+.postal .sub { font-family: var(--fuente-pixel); font-weight: 700; color: var(--jade); font-size: clamp(1.1rem, .4rem + 2vw, 2.8rem); letter-spacing: .1em; text-transform: uppercase; }
+.postal .renglones { display: grid; gap: clamp(4px, .9vh, 10px); margin-top: 3%; font-family: var(--fuente-texto); font-style: italic; color: var(--tinta); font-size: clamp(.8rem, .4rem + .9vw, 1.35rem); }
+.postal .renglones span { border-bottom: 1px solid var(--papel-hondo); padding-bottom: 3px; }
+.sello { position: absolute; top: 4%; right: 2%; width: clamp(48px, 6.4vw, 104px); aspect-ratio: 4/5; background: var(--jade); outline: 4px dotted #FBF7EF; outline-offset: -2px; transform: rotate(5deg); display: grid; place-items: end center; overflow: hidden; }
+.sello canvas { width: 70%; image-rendering: pixelated; }
+.matasellos { position: absolute; top: 5%; right: 22%; width: clamp(64px, 8vw, 130px); aspect-ratio: 1; border: 2px solid color-mix(in srgb, var(--gema) 70%, transparent); border-radius: 50%; display: grid; place-content: center; text-align: center; font-family: var(--fuente-pixel); color: color-mix(in srgb, var(--gema) 80%, transparent); font-size: clamp(.45rem, .25rem + .45vw, .8rem); letter-spacing: .1em; text-transform: uppercase; transform: rotate(-14deg); line-height: 1.3; }
+.gracias { margin-top: clamp(22px, 4vh, 46px); font-family: var(--fuente-pixel); font-size: var(--t-sub); color: var(--corteza); text-align: center; position: relative; z-index: 2; }
+
+/* -------- navegación -------- */
+.puntos { position: fixed; z-index: 20; right: max(10px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 7px; }
+.puntos button { width: 7px; height: 7px; padding: 0; border: 0; background: color-mix(in srgb, var(--tinta) 22%, var(--papel)); cursor: pointer; }
+.puntos button[aria-current="true"] { background: var(--jade); height: 20px; }
+.puntos button:focus-visible { outline: 2px solid var(--jade); outline-offset: 3px; }
+.ayuda { position: fixed; z-index: 20; left: max(14px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); font-family: var(--fuente-pixel); font-size: .78rem; letter-spacing: .12em; color: color-mix(in srgb, var(--tinta) 45%, var(--papel)); text-transform: uppercase; transition: opacity .6s; }
+
+/* -------- aparición (solo con JS; sin JS todo está visible) -------- */
+.js .entra { opacity: 0; transform: translateY(28px); transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1); }
+.js .visible .entra { opacity: 1; transform: none; }
+.js .visible .entra:nth-child(2) { transition-delay: .08s; }
+.js .visible .entra:nth-child(3) { transition-delay: .16s; }
+.js .visible .entra:nth-child(4) { transition-delay: .24s; }
+.js .visible .entra:nth-child(5) { transition-delay: .32s; }
+
+@media (max-width: 760px) {
+  .duo, .abajo, .cifras, .equipo { grid-template-columns: minmax(0, 1fr); }
+  .pantalla[data-lado] .contenido { margin-inline: auto; }
+  .asoma { opacity: .35; }
+  .postal { grid-template-columns: minmax(0, 1fr); aspect-ratio: auto; transform: none; }
+  .postal .foto { width: 100%; height: auto; }
+  .postal .reverso { border-left: 0; border-top: 2px dashed var(--papel-hondo); }
+  .puntos { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .js .entra { transition: none; opacity: 1; transform: none; }
+}
+</style>
+
+<nav class="puntos" aria-label="Pantallas"></nav>
+<div class="ayuda" id="ayuda">↓ / → avanzar · F pantalla completa</div>
+
+<main id="presentacion">
+
+  <section class="pantalla portada" id="inicio" aria-label="Portada">
+    <figure>
+      <img src="img/portada.jpg" alt="Portada de ECOS: el protagonista entre ruinas, con manos de luz que deletrean en lengua de señas" width="1408" height="1117">
+      <figcaption><span>Listick Games</span><span>Game Jam ANIEI 2026 · Cultura, identidad y patrimonio</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="pantalla" id="que-es" data-sprite="protagonista">
+    <div class="contenido">
+      <p class="ojo entra">Qué es ECOS</p>
+      <h2 class="entra">Tu mano es el hechizo.</h2>
+      <p class="lema entra">Un juego de acción y exploración en 2D donde lanzas conjuros deletreando en <b>Lengua de Señas Mexicana</b> frente a tu cámara.</p>
+    </div>
+  </section>
+
+  <section class="pantalla" id="historia" data-sprite="madre">
+    <div class="contenido">
+      <p class="ojo entra">La historia</p>
+      <h2 class="entra">Su madre desaparece. Le deja sus señas.</h2>
+      <p class="lema entra">Ella es sorda y criptógrafa. Él solo tiene el <b>Códice de las Voces</b> y el idioma que ella le enseñó.</p>
+      <p class="nota entra">Para encontrarla cruza un México retrofuturista colapsado, donde la Cofradía del Espejo Negro corrompe a los seres del folclor.</p>
+    </div>
+  </section>
+
+  <section class="pantalla" id="mecanica" data-sprite="encapuchado">
+    <div class="contenido" style="width:min(100%,72rem)">
+      <p class="ojo entra">La mecánica</p>
+      <div class="deletreo entra" aria-label="Se deletrea C, A, L, M, A">
+        <span>C</span><span>A</span><span>L</span><span>M</span><span>A</span><small>Sostén cada seña 300 ms</small>
+      </div>
+      <div class="duo">
+        <dl class="afinidades entra">
+          <div><dt>CALMA</dt><dd>tranquiliza a los chaneques</dd></div>
+          <div><dt>LUZ</dt><dd>purifica a los espíritus</dd></div>
+          <div><dt>MEMORIA</dt><dd>devuelve el recuerdo a las bestias</dd></div>
+          <div><dt>VERDAD</dt><dd>desenmascara a los nahuales</dd></div>
+          <div><dt>DESCANSO</dt><dd>da paz a las almas atadas</dd></div>
+          <div><dt>MAMÁ</dt><dd>la última seña del juego</dd></div>
+        </dl>
+        <figure class="entra" style="margin:0">
+          <img class="captura" src="capturas/conjuro_deletreo.png" alt="Captura: el protagonista deletrea un conjuro durante un combate" width="1280" height="720" loading="lazy">
+          <figcaption class="pie">13 conjuros · 22 letras de la LSM · cámara o teclado</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="pantalla" id="tema" data-sprite="llorona">
+    <div class="contenido">
+      <p class="ojo entra">Cultura, identidad y patrimonio</p>
+      <h2 class="entra">La cultura está en la mecánica.</h2>
+      <p class="lema entra">La <b>LSM</b> es la lengua de miles de personas sordas en México. Aquí es la única forma de pelear.</p>
+      <p class="nota entra">Chaneques, nahuales, la Llorona y la Bruja Guajolote no se matan: se purifican. Cada ser responde a un conjuro distinto.</p>
+    </div>
+  </section>
+
+  <section class="pantalla desfile" id="personajes">
+    <div class="contenido" style="width:min(100%,70rem)">
+      <p class="ojo entra">Los personajes</p>
+      <h2 class="entra">Veinticuatro personajes, dibujados pixel a pixel.</h2>
+    </div>
+    <canvas class="pista" id="pista" aria-label="Desfile de los personajes del juego corriendo de un lado a otro de la pantalla, con su nombre debajo"></canvas>
+  </section>
+
+  <section class="pantalla" id="viaje" data-sprite="balam">
+    <div class="contenido" style="width:min(100%,70rem)">
+      <p class="ojo entra">El viaje</p>
+      <h2 class="entra">Siete niveles, de Veracruz a Jalisco.</h2>
+      <p class="ruta entra" aria-label="Ruta: Xalapa, San Andrés Tuxtla, Catemaco, Oaxaca, Ciudad de México en dos partes y Guadalajara">
+        Xalapa <i>→</i> Tuxtla <i>→</i> Catemaco <i>→</i> Oaxaca <i>→</i> CDMX <i>→</i> CDMX <i>→</i> Guadalajara
+      </p>
+      <p class="nota entra">Cada parada tiene su escenario pintado capa por capa, su jefe y su música.</p>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="xalapa" data-sprite="chaneque_mayor" data-escena="xalapa">
+    <div class="cabeza"><h2 class="entra">El misterio del Parque Juárez</h2><span class="ojo entra">1 / 7 · Xalapa, Veracruz</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario del Parque Juárez con niebla"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefe · Chaneque Mayor</p><p class="nota">La niebla verde cubre el parque. Una antena de la Cofradía enloquece a los chaneques. Aquí se aprenden CALMA y PROTECCIÓN.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_chaneque_mayor.png" alt="Captura del combate contra el Chaneque Mayor" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="tuxtla" data-sprite="chaneque" data-escena="tuxtla">
+    <div class="cabeza"><h2 class="entra">La música perdida</h2><span class="ojo entra">2 / 7 · San Andrés Tuxtla</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario de San Andrés Tuxtla al atardecer"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">El fandango</p><p class="nota">Cinco estrofas de son jarocho perdidas por el pueblo. Al reunirlas, el fandango suena por capas y aprendes VOZ.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/extra_tuxtla.png" alt="Captura de San Andrés Tuxtla" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="catemaco" data-sprite="cabeza_olmeca" data-escena="catemaco">
+    <div class="cabeza"><h2 class="entra">El ritual del lago</h2><span class="ojo entra">3 / 7 · Catemaco</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario del lago de Catemaco de noche"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefe · Cabeza Olmeca</p><p class="nota">Brujos, encapuchados y espíritus. Aparece Balam, el gato alebrije, y la cabeza colosal despierta en tres fases.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_cabeza_olmeca.png" alt="Captura del combate contra la Cabeza Olmeca" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="oaxaca" data-sprite="bruja_guajolote_ave" data-escena="oaxaca">
+    <div class="cabeza"><h2 class="entra">Los tejidos de la memoria</h2><span class="ojo entra">4 / 7 · Oaxaca</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario de las calles de Oaxaca"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefa · Bruja Guajolote</p><p class="nota">Tres artesanos recuperan sus recuerdos con MEMORIA. En Santo Domingo, la bruja se transforma en ave.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_bruja_guajolote.png" alt="Captura del combate contra la Bruja Guajolote" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="cdmx" data-sprite="nahuala" data-escena="xochimilco">
+    <div class="cabeza"><h2 class="entra">De la Isla de las Muñecas a Reforma</h2><span class="ojo entra">5 / 7 · Ciudad de México</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario de Xochimilco con niebla"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefa · La Nahuala</p><p class="nota">Muñecas poseídas en Xochimilco y nahuales infiltrados en la ciudad. VERDAD revela quién es quién.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_nahuala.png" alt="Captura del combate contra la Nahuala" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="cdmx2" data-sprite="rey_olvido" data-escena="trono">
+    <div class="cabeza"><h2 class="entra">El Rey del Olvido</h2><span class="ojo entra">6 / 7 · Ciudad de México</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario del salón del trono"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefe · Rey del Olvido</p><p class="nota">Su corona se rompe con SOL o FUEGO y su sello con MEMORIA. María se vuelve la Llorona y pelea a tu lado.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_rey_olvido.png" alt="Captura del combate contra el Rey del Olvido" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla nivel" id="guadalajara" data-sprite="itzpapalotl" data-escena="eclipse">
+    <div class="cabeza"><h2 class="entra">La trampa y el eclipse final</h2><span class="ojo entra">7 / 7 · Guadalajara</span></div>
+    <div class="escena"><canvas width="640" height="210" aria-label="Escenario de la Catedral bajo el eclipse"></canvas></div>
+    <div class="abajo">
+      <div class="entra"><p class="jefe">Jefa · Itzpapálotl</p><p class="nota">La mariposa de obsidiana. Deletreas MAMÁ y tu madre la detiene desde el altar. Después, por fin, hablan.</p></div>
+      <figure class="entra"><img class="captura" src="capturas/jefe_itzpapalotl.png" alt="Captura del combate contra Itzpapálotl bajo el eclipse" width="1280" height="720" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="pantalla" id="produccion" data-sprite="nahual_animal">
+    <div class="contenido" style="width:min(100%,66rem)">
+      <p class="ojo entra">Cómo lo hicimos</p>
+      <h2 class="entra">Hecho en una jam.</h2>
+      <div class="cifras entra">
+        <div class="cifra"><strong>46 477</strong><span>líneas de TypeScript sobre Phaser 4</span></div>
+        <div class="cifra"><strong>0 servidores</strong><span>MediaPipe lee tus manos dentro de tu computadora; la cámara nunca sale de ella</span></div>
+        <div class="cifra"><strong>15 pistas</strong><span>de soundtrack original, compuestas y mezcladas en REAPER</span></div>
+        <div class="cifra"><strong>16 seres</strong><span>del folclor, cada uno con su forma de purificarse</span></div>
+      </div>
+      <p class="nota entra">Usamos IA y lo declaramos: Claude Code para programar, Codex y Nano Banana para arte de apoyo. La historia, el diseño, la dirección y la música son del equipo.</p>
+    </div>
+  </section>
+
+  <section class="pantalla" id="accesible" data-sprite="muneca">
+    <div class="contenido">
+      <p class="ojo entra">Para todos</p>
+      <h2 class="entra">Se puede terminar sin cámara.</h2>
+      <p class="lema entra">Teclado completo, ventanas de deletreo más largas, menos efectos en pantalla y una fuente pensada para leer.</p>
+      <p class="nota entra">Corre en el navegador y en Windows.</p>
+    </div>
+  </section>
+
+  <section class="pantalla" id="equipo" data-sprite="maria">
+    <div class="contenido" style="width:min(100%,64rem)">
+      <p class="ojo entra">El equipo</p>
+      <h2 class="entra">Listick Games</h2>
+      <ul class="equipo entra">
+        <li><strong>Luis David Sosa Fernández</strong><span>Desarrollo principal, dirección narrativa, diseño de niveles y jefe de proyecto</span></li>
+        <li><strong>Dylan Antonio Hernández Gregorio</strong><span>Dirección de arte y diseño de personajes</span></li>
+        <li><strong>Miguel Ángel Marcelo Taracena</strong><span>Guion, personajes, mecánicas, niveles y apoyo en desarrollo</span></li>
+        <li><strong>Gonzalo Mendoza Herrera</strong><span>Diseño de audio, soundtrack, pruebas y QA</span></li>
+        <li><strong>José Manuel Hernández Pacheco</strong><span>Concept art y pruebas</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="pantalla final" id="final">
+    <div class="postal entra">
+      <img class="foto" src="img/equipo.jpg" alt="Videollamada del equipo al terminar el juego: dyangher, Josher0113, NorthStar, Pancake y Shaunix17 haciendo señas, junto a la portada de ECOS" width="1726" height="1462">
+      <div class="reverso">
+        <div class="matasellos" aria-hidden="true">ANIEI<br>Game Jam<br>2026</div>
+        <div class="sello" aria-hidden="true"><canvas id="sello" width="23" height="71"></canvas></div>
+        <span class="saludo">Saludos desde la jam</span>
+        <span class="grande">LISTICK<br>GAMES</span>
+        <span class="sub">Dream Team</span>
+        <div class="renglones"><span>16 horas seguidas de desarrollo.</span><span>Terminamos el juego y así nos despedimos.</span></div>
+      </div>
+    </div>
+    <p class="gracias entra">Gracias. Juéguenlo en itch.io.</p>
+  </section>
+
+</main>
+
+<script src="sprites-datos.js"></script>
+<script>
+(() => {
+  const D = document.documentElement;
+  D.classList.add('js');
+  const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pantallas = [...document.querySelectorAll('.pantalla')];
+
+  /* ---------- sello de la postal: el protagonista, primer cuadro de reposo ---------- */
+  const selloImg = new Image();
+  selloImg.onload = () => document.getElementById('sello').getContext('2d').drawImage(selloImg, 2, 0, 23, 71, 0, 0, 23, 71);
+  selloImg.src = 'img/sp/protagonista.png';
+
+  /* ---------- lado aleatorio por pantalla, sin repetir tres veces seguidas ---------- */
+  let previo = [], lados = {};
+  pantallas.forEach(p => {
+    if (!p.dataset.sprite) return;
+    let l = Math.random() < .5 ? 'izq' : 'der';
+    if (previo.length >= 2 && previo[0] === previo[1] && previo[1] === l) l = l === 'izq' ? 'der' : 'izq';
+    previo = [previo[1], l].filter(Boolean).slice(-2);
+    p.dataset.lado = l;
+  });
+
+  /* ---------- sprites del juego ---------- */
+  /* Medidas de las tiras en sprites-datos.js (extraer_v3.py): w,h del cuadro; hb alto del cuerpo en reposo;
+     idle/atk/walk: cuadros de reposo, ataque y caminar; cuerpo: x del cuerpo en reposo; pasea: camina de lado a lado.
+     Aquí solo va el alto en pantalla, como fracción del alto de la ventana. */
+  const ALTO = {
+    protagonista: .52, madre: .5, encapuchado: .52, llorona: .54, balam: .22, chaneque_mayor: .6, chaneque: .24,
+    cabeza_olmeca: .52, bruja_guajolote_ave: .6, nahuala: .64, rey_olvido: .66, itzpapalotl: .7, nahual_animal: .54,
+    muneca: .27, maria: .5,
+  };
+  const SPR = {};
+  for (const [id, d] of Object.entries(window.SPR_DATOS || {})) SPR[id] = { ...d, alto: ALTO[id] ?? .5 };
+  const asomados = [];
+  pantallas.forEach(p => {
+    const id = p.dataset.sprite; if (!id || !SPR[id]) return;
+    const s = SPR[id];
+    const c = document.createElement('canvas');
+    c.className = s.pasea ? 'asoma pasea' : 'asoma';
+    if (!s.pasea) c.dataset.lado = p.dataset.lado;
+    c.width = s.w; c.height = s.h;
+    c.setAttribute('aria-hidden', 'true');
+    const img = new Image(); img.src = `img/sp/${id}.png`;
+    p.appendChild(c);
+    asomados.push({
+      p, c, s, img, ctx: c.getContext('2d'), cuadro: -1, esc: 1, ataqueDesde: -1, proximoAtaque: 0,
+      /* paseo */ x: null, dir: 1, modo: 'camina', hasta: 0, carril: p.querySelector('.escena'),
+    });
+  });
+  function medirSprites() {
+    const vh = innerHeight;
+    D.style.setProperty('--alto', vh + 'px');
+    asomados.forEach(a => {
+      const objetivo = vh * a.s.alto * (innerWidth < 760 ? .7 : 1);
+      a.esc = Math.max(2, Math.round(objetivo / a.s.hb));
+      a.c.style.width = a.s.w * a.esc + 'px';
+      a.c.style.height = a.s.h * a.esc + 'px';
+      /* Margen entre el borde de la pantalla y el cuerpo, y lo que el texto debe dejar libre. */
+      a.hueco = Math.round(innerWidth * .025);
+      const reserva = innerWidth < 760 || a.s.pasea ? 0 : (a.s.cuerpo[1] - a.s.cuerpo[0]) * a.esc + a.hueco;
+      a.p.style.setProperty('--reserva', reserva + 'px');
+    });
+    medirDesfile();
+  }
+
+  /* Paseo de los personajes pequeños: caminan de un borde a otro, se detienen, a veces atacan y dan la vuelta. */
+  function pasear(a, ahora, dt) {
+    const W = innerWidth, e = a.esc, s = a.s;
+    /* Límites para que el cuerpo (no el cuadro) quede a un margen del borde, según hacia dónde mira. */
+    const c0 = a.dir > 0 ? s.cuerpo[0] : s.w - s.cuerpo[1];
+    const c1 = a.dir > 0 ? s.cuerpo[1] : s.w - s.cuerpo[0];
+    const minX = a.hueco - c0 * e, maxX = W - a.hueco - c1 * e;
+    if (a.x === null) { a.x = minX + Math.random() * (maxX - minX); a.dir = Math.random() < .5 ? 1 : -1; a.modo = 'camina'; }
+    let n;
+    if (a.modo === 'camina') {
+      a.x += a.dir * W * .055 * dt;
+      if ((a.dir > 0 && a.x >= maxX) || (a.dir < 0 && a.x <= minX) || Math.random() < dt * .12) {
+        a.x = Math.max(minX, Math.min(maxX, a.x));
+        a.modo = 'pausa'; a.hasta = ahora + 700 + Math.random() * 900;
+      }
+      n = s.idle + s.atk + Math.floor(ahora * s.fpsWalk / 1000) % s.walk;
+    } else if (a.modo === 'pausa') {
+      if (ahora >= a.hasta) {
+        if (Math.random() < .45) { a.modo = 'ataca'; a.ataqueDesde = ahora; }
+        else { a.modo = 'camina'; if (Math.random() < .7 || a.x <= minX || a.x >= maxX) a.dir *= -1; }
+      }
+      n = Math.floor(ahora * s.fpsIdle / 1000) % s.idle;
+    } else {
+      const k = Math.floor((ahora - a.ataqueDesde) * s.fpsAtk / 1000);
+      if (k < s.atk) n = s.idle + k;
+      else { a.modo = 'camina'; a.dir *= -1; n = 0; }
+    }
+    /* Sobre el suelo del escenario si la pantalla tiene uno; si no, al pie de la pantalla. */
+    let py = 0;
+    if (a.carril) {
+      const r = a.carril.getBoundingClientRect(), pr = a.p.getBoundingClientRect();
+      py = -(pr.bottom - (r.bottom - r.height * .06));
+    }
+    a.c.style.setProperty('--px', a.x + 'px');
+    a.c.style.setProperty('--py', py + 'px');
+    a.c.style.setProperty('--dir', String(a.dir));
+    return n;
+  }
+
+  /* ---------- desfile de personajes: salen uno tras otro y cruzan la pantalla corriendo ---------- */
+  const DESFILE = window.DESFILE || [];
+  const pista = document.getElementById('pista');
+  const pctx = pista ? pista.getContext('2d') : null;
+  const desfileImgs = DESFILE.map(d => { const im = new Image(); im.src = `img/desfile/${d.id}.png`; return im; });
+  let desfile = { escala: 3, suelo: 0, corredores: [], siguiente: 0, activo: false };
+  function medirDesfile() {
+    if (!pista) return;
+    const r = pista.getBoundingClientRect();
+    pista.width = Math.max(1, Math.round(r.width)); pista.height = Math.max(1, Math.round(r.height));
+    const masAlto = Math.max(...DESFILE.map(d => d.h));
+    desfile.escala = Math.max(2, Math.floor((pista.height - 64) / masAlto));
+    desfile.suelo = pista.height - 52;
+  }
+  function pasoDesfile(ahora, dt) {
+    const W = pista.width, s = desfile.escala, ctx = pctx;
+    ctx.clearRect(0, 0, W, pista.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = getComputedStyle(D).getPropertyValue('--papel-hondo');
+    ctx.fillRect(0, desfile.suelo, W, 2);
+    const vel = W * .17;
+    const ult = desfile.corredores[desfile.corredores.length - 1];
+    if (!ult || ult.x > 70) {
+      const i = desfile.siguiente % DESFILE.length;
+      desfile.corredores.push({ i, x: -DESFILE[i].w * s, t0: ahora });
+      desfile.siguiente++;
+    }
+    ctx.font = `700 ${Math.max(16, Math.round(s * 6))}px "Pixelify Sans", "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    for (const c of desfile.corredores) {
+      const d = DESFILE[c.i], im = desfileImgs[c.i];
+      c.x += vel * dt;
+      const w = d.w * s, h = d.h * s;
+      ctx.fillStyle = 'rgba(42,32,25,.14)';
+      ctx.beginPath(); ctx.ellipse(c.x + w / 2, desfile.suelo, w * .32, 5, 0, 0, Math.PI * 2); ctx.fill();
+      if (im.complete && im.naturalWidth) {
+        const f = Math.floor((ahora - c.t0) * d.fps / 1000) % d.n;
+        ctx.drawImage(im, f * d.w, 0, d.w, d.h, Math.round(c.x), desfile.suelo - h, w, h);
+      }
+      ctx.fillStyle = getComputedStyle(D).getPropertyValue('--tinta');
+      ctx.fillText(d.nombre, c.x + w / 2, desfile.suelo + 34);
+    }
+    desfile.corredores = desfile.corredores.filter(c => c.x < W + 20);
+  }
+
+  /* ---------- escenarios con parallax y efectos en bucle ---------- */
+  const ESC = {
+    xalapa:   { y0: 34, anchos: [730,976,1536,2096,2880,3440], fx: { niebla: '190,226,208', llovizna: true, luciernagas: '216,255,140' } },
+    tuxtla:   { y0: 48, anchos: [759,1084,1824,2564,3600,4340], fx: { polvo: '255,214,150', calor: true } },
+    catemaco: { y0: 52, anchos: [711,904,1344,1784,2400,2840], fx: { niebla: '150,180,220', luciernagas: '255,240,170', estrellas: true } },
+    oaxaca:   { y0: 44, anchos: [735,994,1584,2174,3000,3590], fx: { petalos: true, niebla: '170,120,200' } },
+    xochimilco: { y0: 40, anchos: [735,994,1584,2174,3000,3590], fx: { niebla: '190,200,215', luciernagas: '255,150,200', estrellas: true } },
+    trono:    { y0: 20, anchos: [687,814,1104,1394,1800,2090], fx: { motas: true, niebla: '120,90,170' } },
+    eclipse:  { y0: 30, anchos: [679,784,1024,1264,1600,1840], fx: { ceniza: true, estrellas: true, niebla: '140,90,180' } },
+  };
+  const escenas = [];
+  document.querySelectorAll('[data-escena]').forEach(p => {
+    const k = p.dataset.escena, cfg = ESC[k], c = p.querySelector('.escena canvas');
+    const capas = cfg.anchos.map((_, i) => { const im = new Image(); im.src = `img/esc/${k}_${i}.png`; return im; });
+    escenas.push({ p, c, ctx: c.getContext('2d'), cfg, capas, parts: crearParticulas(cfg.fx), t: 0 });
+  });
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function crearParticulas(fx) {
+    const P = { lluvia: [], bichos: [], polvo: [], petalos: [], ceniza: [], motas: [], estrellas: [], niebla: [] };
+    if (fx.llovizna) for (let i = 0; i < 70; i++) P.lluvia.push({ x: rnd(0, 700), y: rnd(-20, 210), v: rnd(120, 170) });
+    if (fx.luciernagas) for (let i = 0; i < 26; i++) P.bichos.push({ x: rnd(0, 640), y: rnd(70, 200), f: rnd(0, 6.28), v: rnd(.4, 1.1) });
+    if (fx.polvo) for (let i = 0; i < 46; i++) P.polvo.push({ x: rnd(0, 640), y: rnd(0, 210), f: rnd(0, 6.28) });
+    if (fx.petalos) for (let i = 0; i < 34; i++) P.petalos.push({ x: rnd(0, 640), y: rnd(-210, 210), v: rnd(14, 26), f: rnd(0, 6.28) });
+    if (fx.ceniza) for (let i = 0; i < 60; i++) P.ceniza.push({ x: rnd(0, 640), y: rnd(-210, 210), v: rnd(8, 20), f: rnd(0, 6.28) });
+    if (fx.motas) for (let i = 0; i < 44; i++) P.motas.push({ x: rnd(0, 640), y: rnd(0, 230), v: rnd(6, 16), f: rnd(0, 6.28), c: Math.random() < .5 ? '96,232,214' : '178,120,255' });
+    if (fx.estrellas) for (let i = 0; i < 40; i++) P.estrellas.push({ x: Math.floor(rnd(0, 640)), y: Math.floor(rnd(0, 70)), f: rnd(0, 6.28), v: rnd(1, 3) });
+    if (fx.niebla) for (let i = 0; i < 9; i++) P.niebla.push({ x: rnd(-100, 700), y: rnd(110, 190), r: rnd(70, 150), v: rnd(4, 10) * (Math.random() < .5 ? -1 : 1), a: rnd(.08, .16) });
+    return P;
+  }
+  function dibujarEscena(e, prog, dt) {
+    const { ctx, cfg, capas, parts: P } = e; const fx = cfg.fx;
+    e.t += dt;
+    const t = e.t;
+    const cam = Math.min(1, Math.max(0, .12 + .62 * prog + .03 * Math.sin(t * .18)));
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#120f18'; ctx.fillRect(0, 0, 640, 210);
+    const y = -cfg.y0;
+    for (let i = 0; i < 6; i++) {
+      const im = capas[i]; if (!im.complete || !im.naturalWidth) continue;
+      ctx.drawImage(im, Math.round(-(im.naturalWidth - 640) * cam), y + (360 - im.naturalHeight));
+      if (i === 0 && P.estrellas.length) {
+        for (const s of P.estrellas) { const a = .25 + .75 * Math.max(0, Math.sin(t * s.v + s.f)); ctx.fillStyle = `rgba(255,250,235,${a * .8})`; ctx.fillRect(s.x, s.y, 1, 1); }
+      }
+      if (i === 3) {
+        for (const n of P.niebla) {
+          n.x += n.v * dt; if (n.x > 760) n.x = -120; if (n.x < -120) n.x = 760;
+          const g = ctx.createRadialGradient(n.x, n.y + y + 34, 0, n.x, n.y + y + 34, n.r);
+          g.addColorStop(0, `rgba(${fx.niebla},${n.a})`); g.addColorStop(1, `rgba(${fx.niebla},0)`);
+          ctx.fillStyle = g; ctx.fillRect(n.x - n.r, n.y + y + 34 - n.r, n.r * 2, n.r * 2);
+        }
+        if (fx.calor) { ctx.fillStyle = `rgba(255,170,90,${.05 + .03 * Math.sin(t * .7)})`; ctx.fillRect(0, 0, 640, 210); }
+      }
+    }
+    for (const b of P.bichos) {
+      b.x += Math.cos(t * b.v + b.f) * .35; b.y += Math.sin(t * b.v * 1.3 + b.f) * .25;
+      const a = Math.max(0, Math.sin(t * 2 * b.v + b.f));
+      if (a > .05) { ctx.fillStyle = `rgba(${fx.luciernagas},${a})`; ctx.fillRect(Math.round(b.x), Math.round(b.y), 1, 1); ctx.fillStyle = `rgba(${fx.luciernagas},${a * .25})`; ctx.fillRect(Math.round(b.x) - 1, Math.round(b.y) - 1, 3, 3); }
+    }
+    for (const d of P.polvo) { d.y -= dt * 3; d.x += Math.sin(t * .6 + d.f) * .12; if (d.y < -2) { d.y = 212; d.x = rnd(0, 640); } ctx.fillStyle = `rgba(${fx.polvo},${.35 + .35 * Math.sin(t + d.f)})`; ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 1); }
+    for (const p of P.petalos) { p.y += p.v * dt; p.x += Math.sin(t * 1.4 + p.f) * .5 - .15; if (p.y > 214) { p.y = -4; p.x = rnd(0, 660); } ctx.fillStyle = Math.sin(t * 3 + p.f) > 0 ? '#F2A13A' : '#D97A1E'; ctx.fillRect(Math.round(p.x), Math.round(p.y), 2, Math.sin(t * 3 + p.f) > 0 ? 1 : 2); }
+    for (const c of P.ceniza) { c.y += c.v * dt; c.x += Math.sin(t * .8 + c.f) * .25; if (c.y > 214) { c.y = -3; c.x = rnd(0, 640); } ctx.fillStyle = `rgba(205,196,210,${.4 + .3 * Math.sin(t + c.f)})`; ctx.fillRect(Math.round(c.x), Math.round(c.y), 1, 1); }
+    for (const m of P.motas) { m.y -= m.v * dt; m.x += Math.sin(t * .9 + m.f) * .2; if (m.y < -3) { m.y = 214; m.x = rnd(0, 640); } const a = .3 + .6 * Math.max(0, Math.sin(t * 1.6 + m.f)); ctx.fillStyle = `rgba(${m.c},${a})`; ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1); }
+    for (const r of P.lluvia) { r.y += r.v * dt; r.x -= r.v * dt * .25; if (r.y > 212) { r.y = rnd(-30, -4); r.x = rnd(0, 720); } ctx.fillStyle = 'rgba(200,230,215,.28)'; ctx.fillRect(Math.round(r.x), Math.round(r.y), 1, 3); }
+  }
+
+  /* ---------- progreso de cada pantalla según el scroll ---------- */
+  function progreso(el) {
+    const r = el.getBoundingClientRect(), vh = innerHeight;
+    return { p: Math.min(1, Math.max(0, (vh - r.top) / (vh + r.height))), visible: r.bottom > 0 && r.top < vh, centro: 1 - Math.min(1, Math.abs(r.top + r.height / 2 - vh / 2) / vh) };
+  }
+
+  const mec = document.getElementById('mecanica');
+  const letras = [...mec.querySelectorAll('.deletreo span')];
+  let ultimo = performance.now();
+  function cuadro(ahora) {
+    const dt = Math.min(.05, (ahora - ultimo) / 1000); ultimo = ahora;
+    const vh = innerHeight;
+    marcarVisibles();
+
+    /* portada: se aleja suave al bajar */
+    const fig = document.querySelector('.portada figure');
+    if (fig && !reducido) { const s = Math.min(1, scrollY / vh); fig.style.transform = `translateY(${s * 12}vh) scale(${1 - s * .12})`; fig.style.opacity = String(1 - s * .55); }
+
+    for (const a of asomados) {
+      const { visible, centro } = progreso(a.p);
+      if (!visible) { a.c.style.setProperty('--x', '100%'); a.ataqueDesde = -1; a.proximoAtaque = 0; a.x = null; continue; }
+      if (a.s.pasea) {
+        const n = pasear(a, ahora, reducido ? 0 : dt);
+        if (n !== a.cuadro && a.img.complete && a.img.naturalWidth) {
+          a.ctx.clearRect(0, 0, a.s.w, a.s.h); a.ctx.drawImage(a.img, n * a.s.w, 0, a.s.w, a.s.h, 0, 0, a.s.w, a.s.h); a.cuadro = n;
+        }
+        continue;
+      }
+      const ent = Math.min(1, Math.max(0, (centro - .35) / .45));
+      const suave = ent * ent * (3 - 2 * ent);
+      /* El cuerpo en reposo entra completo, a un pequeño margen del borde; el ataque sale hacia el centro. */
+      const total = a.s.w * a.esc;
+      const asomado = a.s.cuerpo[0] * a.esc - a.hueco;
+      const oculto = reducido ? asomado : total - (total - asomado) * suave;
+      a.c.style.setProperty('--x', oculto + 'px');
+      /* Reposo en bucle y, ya asomado, su ataque del juego cada 3–5 s. */
+      if (suave > .95 && a.ataqueDesde < 0) {
+        if (!a.proximoAtaque) a.proximoAtaque = ahora + 900 + Math.random() * 900;
+        else if (ahora >= a.proximoAtaque && !reducido) a.ataqueDesde = ahora;
+      }
+      let n;
+      if (a.ataqueDesde >= 0) {
+        const k = Math.floor((ahora - a.ataqueDesde) * a.s.fpsAtk / 1000);
+        if (k < a.s.atk) n = a.s.idle + k;
+        else { a.ataqueDesde = -1; a.proximoAtaque = ahora + 3000 + Math.random() * 2000; }
+      }
+      if (n === undefined) n = Math.floor(ahora * a.s.fpsIdle / 1000) % a.s.idle;
+      if (n !== a.cuadro && a.img.complete && a.img.naturalWidth) {
+        a.ctx.clearRect(0, 0, a.s.w, a.s.h); a.ctx.drawImage(a.img, n * a.s.w, 0, a.s.w, a.s.h, 0, 0, a.s.w, a.s.h); a.cuadro = n;
+      }
+    }
+    if (pista) {
+      const vis = progreso(pista.parentElement).visible;
+      if (vis && !desfile.activo) { desfile.corredores = []; desfile.siguiente = 0; }
+      desfile.activo = vis;
+      if (vis) pasoDesfile(ahora, reducido ? 0 : dt);
+    }
+    /* deletreo de CALMA: una letra cada 420 ms, como al sostener cada seña */
+    if (letras.length) {
+      const activo = mec.classList.contains('visible');
+      const k = activo ? Math.floor(ahora / 420) % (letras.length + 3) : -1;
+      letras.forEach((l, j) => l.classList.toggle('on', activo && j <= k && k < letras.length + 2));
+    }
+    for (const e of escenas) {
+      const { visible, p } = progreso(e.p);
+      if (visible) dibujarEscena(e, p, reducido ? 0 : dt);
+    }
+    requestAnimationFrame(cuadro);
+  }
+
+  /* ---------- aparición del texto ---------- */
+  function marcarVisibles() {
+    pantallas.forEach(p => { const r = p.getBoundingClientRect(), vh = innerHeight; p.classList.toggle('visible', r.top < vh * .7 && r.bottom > vh * .3); });
+  }
+
+  /* ---------- navegación con teclado o control remoto: scroll continuo ---------- */
+  const nav = document.querySelector('.puntos');
+  pantallas.forEach((p, i) => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.setAttribute('aria-label', `Ir a la pantalla ${i + 1}`); b.addEventListener('click', () => ir(i));
+    nav.appendChild(b);
+  });
+  const botones = [...nav.children];
+  function actual() {
+    let mejor = 0, d = Infinity;
+    pantallas.forEach((p, i) => { const x = Math.abs(p.getBoundingClientRect().top); if (x < d) { d = x; mejor = i; } });
+    return mejor;
+  }
+  let anim = null;
+  function ir(i) {
+    i = Math.max(0, Math.min(pantallas.length - 1, i));
+    const desde = scrollY, hasta = pantallas[i].offsetTop, dur = reducido ? 0 : 1150, t0 = performance.now();
+    if (anim) cancelAnimationFrame(anim);
+    const paso = now => {
+      const k = Math.min(1, (now - t0) / (dur || 1)), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      scrollTo(0, desde + (hasta - desde) * e);
+      if (k < 1) anim = requestAnimationFrame(paso); else anim = null;
+    };
+    anim = requestAnimationFrame(paso);
+  }
+  addEventListener('keydown', ev => {
+    const k = ev.key;
+    if (['ArrowDown', 'ArrowRight', 'PageDown', ' ', 'Enter'].includes(k)) { ev.preventDefault(); ir(actual() + 1); }
+    else if (['ArrowUp', 'ArrowLeft', 'PageUp', 'Backspace'].includes(k)) { ev.preventDefault(); ir(actual() - 1); }
+    else if (k === 'Home') { ev.preventDefault(); ir(0); }
+    else if (k === 'End') { ev.preventDefault(); ir(pantallas.length - 1); }
+    else if (k === 'f' || k === 'F') {
+      try { document.fullscreenElement ? document.exitFullscreen() : D.requestFullscreen().catch(() => {}); } catch (_) {}
+    }
+  });
+  const ayuda = document.getElementById('ayuda');
+  addEventListener('scroll', () => {
+    const i = actual();
+    botones.forEach((b, j) => b.setAttribute('aria-current', String(i === j)));
+    ayuda.style.opacity = scrollY > 40 ? '0' : '1';
+  }, { passive: true });
+  addEventListener('resize', medirSprites);
+  medirSprites();
+  botones[0].setAttribute('aria-current', 'true');
+  requestAnimationFrame(cuadro);
+})();
+</script>
